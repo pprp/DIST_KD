@@ -27,6 +27,7 @@ from utils.logger import setup_logger
 from utils.score import SegmentationMetric
 from dataset.datasets import CSTrainValSet
 from utils.flops import cal_multi_adds, cal_param_size
+from losses.autokd import CriterionAutoKD
 
 
 def parse_args():
@@ -194,6 +195,7 @@ class Trainer(object):
         
         self.criterion = SegCrossEntropyLoss(ignore_index=args.ignore_label).to(self.device)
         self.criterion_kd = DIST()
+        self.criterion_autokd = CriterionAutoKD()
         self.criterion_kd.cuda()
     
         params_list = nn.ModuleList([])
@@ -251,7 +253,8 @@ class Trainer(object):
 
             s_outputs = self.s_model(images)
 
-            kd_loss = self.args.lambda_kd * self.criterion_kd(s_outputs[0], t_outputs[0])
+            # [x, auxout, x_feat_after_aspp, c4]
+            kd_loss = self.args.lambda_kd * self.criterion_kd(s_outputs[0], t_outputs[0]) + self.criterion_autokd(s_outputs[0], t_outputs[0])
             
             if self.args.aux:
                 task_loss = self.criterion(s_outputs[0], targets) + 0.4 * self.criterion(s_outputs[1], targets)
